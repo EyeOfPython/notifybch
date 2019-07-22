@@ -4,6 +4,7 @@ from string import Template
 from aiohttp import web
 import aiohttp
 import asyncio
+import pickle
 from cashaddress.convert import Address
 
 import wallet
@@ -11,8 +12,14 @@ from tx_event import TxBitsocket, Tx
 
 app_auth = os.environ['ONESIGNAL_APP_KEY']
 app_id = os.environ['ONESIGNAL_APP_ID']
+addresses_path = os.environ.get('ADDRESSES_PATH', 'addresses.pickle')
 
+try:
+    addresses = pickle.load(open(addresses_path, 'rb'))
+except:
+    addresses = set()
 wallet = wallet.WalletDefault()
+wallet.add_addresses([Address.from_string(address) for address in addresses])
 
 
 def format_bch_amount(satoshis: int):
@@ -75,18 +82,27 @@ asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(listen_txs()))
 
 
 template = Template(open('subscribe.html').read())
+scan_template = open('scan.html').read()
 
 
 async def handle(request):
-    address = request.match_info.get('address', '')
-    wallet.add_addresses([Address.from_string(address)])
+    try:
+        address = request.match_info.get('address', '<no address provided>')
+        wallet.add_addresses([Address.from_string(address)])
+    except:
+        return web.Response(text=f'Invalid address: {address}')
+    addresses.add(address)
+    pickle.dump(addresses, open(addresses_path, 'wb'))
     return web.Response(
         text=template.substitute(address=address, appId=app_id),
         content_type='text/html',
     )
 
+async def handle_scan(request):
+    return web.Response(text=scan_template, content_type='text/html')
+
 app = web.Application()
-app.add_routes([web.get('/', handle),
+app.add_routes([web.get('/', handle_scan),
                 web.get('/{address}', handle)])
 
 web.run_app(app, port=7010)
