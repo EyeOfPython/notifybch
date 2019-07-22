@@ -7,6 +7,7 @@ import asyncio
 import pickle
 from cashaddress.convert import Address
 
+import exchange_rate
 import wallet
 from tx_event import TxBitsocket, Tx
 
@@ -20,6 +21,7 @@ except:
     addresses = set()
 wallet = wallet.WalletDefault()
 wallet.add_addresses([Address.from_string(address) for address in addresses])
+exchange_rates = exchange_rate.ExchangeRateApi()
 
 
 def format_bch_amount(satoshis: int):
@@ -40,6 +42,11 @@ def format_bch_amount(satoshis: int):
         return f'{whole_part_str} BCH'
 
 
+def format_usd_amount(satoshis: int) -> str:
+    sats_per_usd = exchange_rates.for_currency('USD')
+    return '${:.2}'.format(satoshis / sats_per_usd)
+
+
 async def receive_tx(tx: Tx):
     amounts = {}
     for output in tx.outputs():
@@ -51,7 +58,7 @@ async def receive_tx(tx: Tx):
     async with aiohttp.ClientSession() as session:
         for bch_address, amount in amounts.items():
             url = 'https://explorer.bitcoin.com/bch/tx/' + tx.tx_hash()
-            msg = f'Received {format_bch_amount(amount)}'
+            msg = f'Received {format_usd_amount(amount)} ({format_bch_amount(amount)})'
             async with session.post(
                     'https://onesignal.com/api/v1/notifications',
                     headers={"Authorization": f'Basic {app_auth}'},
@@ -79,6 +86,7 @@ async def listen_txs():
 
 
 asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(listen_txs()))
+asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(exchange_rates.listen()))
 
 
 template = Template(open('subscribe.html').read())
