@@ -30,16 +30,20 @@ class Wallet(metaclass=ABCMeta):
 
 class WalletDefault(Wallet):
     def __init__(self) -> None:
-        self._listening_addresses = []
+        self._listening_addresses = set()
         self._new_address_future: asyncio.Future = None
 
     def add_addresses(self, addresses: List[Address]) -> None:
-        self._listening_addresses.extend(addresses)
+        self._listening_addresses.update({self.base_addr(address)
+                                          for address in addresses})
         if self._new_address_future is not None:
             try:
                 self._new_address_future.set_exception(NewAddressException())
             except:
                 pass
+
+    def base_addr(self, address: Address) -> str:
+        return address.cash_address().split(':')[1]
 
     def remove_address(self, address: Address) -> None:
         try:
@@ -48,11 +52,7 @@ class WalletDefault(Wallet):
             pass
 
     def is_listening_to_address(self, address: Address) -> bool:
-        cash_addr = address.cash_address()
-        for wallet_address in self._listening_addresses:
-            if wallet_address.cash_address() == cash_addr:
-                return True
-        return False
+        return self.base_addr(address) in self._listening_addresses 
 
     async def listen(self):
         while True:
@@ -60,10 +60,7 @@ class WalletDefault(Wallet):
                 "v": 3, "q": {
                     "find": {
                         "out.e.a": {
-                            "$in": [
-                                address.cash_address().split(':')[1]
-                                for address in self._listening_addresses
-                            ],
+                            "$in": list(self._listening_addresses)
                         },
                     },
                 },
