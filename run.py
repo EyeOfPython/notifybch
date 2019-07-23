@@ -37,12 +37,12 @@ def format_bch_amount(satoshis: int):
             break
     else:
         parts = ()
-    whole_part_str = str(satoshis // 100_000_000)
+    whole_part = satoshis // 100_000_000
     fract_part_str = '\xa0'.join(parts)
     if fract_part_str:
-        return f'{whole_part_str:,}.{fract_part_str} BCH'
+        return f'{whole_part:,}.{fract_part_str} BCH'
     else:
-        return f'{whole_part_str:,} BCH'
+        return f'{whole_part:,} BCH'
 
 
 def format_fiat_amount(satoshis: int, currency: str) -> str:
