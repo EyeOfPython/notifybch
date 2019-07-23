@@ -40,16 +40,16 @@ def format_bch_amount(satoshis: int):
     whole_part_str = str(satoshis // 100_000_000)
     fract_part_str = '\xa0'.join(parts)
     if fract_part_str:
-        return f'{whole_part_str}.{fract_part_str} BCH'
+        return f'{whole_part_str:,}.{fract_part_str} BCH'
     else:
-        return f'{whole_part_str} BCH'
+        return f'{whole_part_str:,} BCH'
 
 
 def format_fiat_amount(satoshis: int, currency: str) -> str:
     sats_per_usd = exchange_rates.for_currency(currency)
     symbol = currency_infos.symbol_for_code(currency)
     fmt = currency_infos.format_for_code(currency)
-    return '{}{:.{n}f}'.format(symbol, satoshis / sats_per_usd, n=fmt['decimalPlaces'])
+    return '{}{:,.{n}f}'.format(symbol, satoshis / sats_per_usd, n=fmt['decimalPlaces'])
 
 
 async def receive_tx(tx: Tx):
