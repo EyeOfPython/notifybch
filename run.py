@@ -114,7 +114,7 @@ async def handle(request):
     except:
         return web.Response(text=f'Invalid address: {address}')
     return web.Response(
-        text=template.substitute(address=address, appId=app_id),
+        text=template.substitute(address=address, appId=app_id, currency=addresses[address]['currency']),
         content_type='text/html',
     )
 

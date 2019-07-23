@@ -6,26 +6,30 @@
     <link rel="manifest" href="/manifest.json" />
     <script src="/onesignal/OneSignalSDK.js" async=""></script>
     <script>
-    var OneSignal = window.OneSignal || [];
-    OneSignal.push(function() {
-      OneSignal.init({
-        appId: '$appId',
-        autoRegister: true,
-        autoResubscribe: true,
+      var OneSignal = window.OneSignal || [];
+      OneSignal.push(function() {
+        var msg = document.getElementById('msg');
+        OneSignal.init({
+          appId: '$appId',
+          autoRegister: true,
+          autoResubscribe: true,
+        });
+        OneSignal.sendTags({'bchAddress': '$address'});
+        OneSignal.on("subscriptionChange", function(isSubscribed) {
+          if (isSubscribed)
+            msg.innerText = 'subscribed successfully to $address';
+        });
+        OneSignal.isPushNotificationsEnabled().then(function (isPushEnabled) {
+          msg.innerText = 'already subscribed, changed to $address';
+        });
       });
-      OneSignal.sendTags({'bchAddress': '$address'});
-      OneSignal.on("subscriptionChange", function(isSubscribed) {
-        if (isSubscribed)
-          document.write('subscribed sucessfully to $address');
-      });
-      OneSignal.isPushNotificationsEnabled().then(function (isPushEnabled) {
-        document.write('already subscribed, changed to $address');
-      });
-    });
-  </script>
+    </script>
   </head>
   <body>
-    Trying to subscribe to $address
+    <div id="msg">Trying to subscribe to $address</div>
+    <div>
+      Click <a href="/subscribe/select-currency/$address">here</a> to change the currency from $currency.
+    </div>
   </body>
 </html>
 
