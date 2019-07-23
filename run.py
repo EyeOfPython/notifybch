@@ -49,8 +49,7 @@ def format_fiat_amount(satoshis: int, currency: str) -> str:
     sats_per_usd = exchange_rates.for_currency(currency)
     symbol = currency_infos.symbol_for_code(currency)
     fmt = currency_infos.format_for_code(currency)
-    amount = str(round(satoshis / sats_per_usd, fmt['decimalPlaces']))
-    return f'{symbol}{amount}'
+    return '{}{:.{n}f}'.format(symbol, satoshis / sats_per_usd, n=fmt['decimalPlaces'])
 
 
 async def receive_tx(tx: Tx):
