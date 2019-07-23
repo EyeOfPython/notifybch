@@ -132,7 +132,7 @@ class CurrenciesInfoFixed(CurrenciesInfo):
         ('Honduras Lempira', 'HNL', 'L', 2),
         ('Hungary Forint', 'HUF', 'Ft', 2),
         ('Iceland Krona', 'ISK', 'kr', 2),
-        ('India Rupee', 'INR', '', 2),
+        ('India Rupee', 'INR', 'INR', 2),
         ('Indonesia Rupiah', 'IDR', 'Rp', 0),
         ('Iran Rial', 'IRR', '﷼', 2),
         ('Isle of Man Pound', 'IMP', '£', 2),
@@ -181,7 +181,7 @@ class CurrenciesInfoFixed(CurrenciesInfo):
         ('Taiwan New Dollar', 'TWD', 'NT$', 2),
         ('Thailand Baht', 'THB', '฿', 2),
         ('Trinidad and Tobago Dollar', 'TTD', 'TT$', 2),
-        ('Turkey Lira', 'TRY', '', 2),
+        ('Turkey Lira', 'TRY', 'TRY', 2),
         ('Tuvalu Dollar', 'TVD', '$', 2),
         ('Ukraine Hryvnia', 'UAH', '₴', 2),
         ('Uruguay Peso', 'UYU', '$U', 2),
@@ -209,4 +209,3 @@ class CurrenciesInfoFixed(CurrenciesInfo):
 
     def format_for_code(self, currency_code: str) -> Dict:
         return self._currencies_info[currency_code]['format']
-
