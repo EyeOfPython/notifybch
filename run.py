@@ -17,11 +17,14 @@ addresses_path = os.environ.get('ADDRESSES_PATH', 'addresses.pickle')
 
 try:
     addresses = pickle.load(open(addresses_path, 'rb'))
+    if isinstance(addresses, set):
+        addresses = {address: {'currency': 'USD'} for address in addresses}
 except:
-    addresses = set()
+    addresses = dict()
 wallet = wallet.WalletDefault()
-wallet.add_addresses([Address.from_string(address) for address in addresses])
+wallet.add_addresses([Address.from_string(address) for address in addresses.keys()])
 exchange_rates = exchange_rate.ExchangeRateApi()
+currency_infos = exchange_rate.CurrenciesInfoFixed()
 
 
 def format_bch_amount(satoshis: int):
@@ -42,9 +45,12 @@ def format_bch_amount(satoshis: int):
         return f'{whole_part_str} BCH'
 
 
-def format_usd_amount(satoshis: int) -> str:
-    sats_per_usd = exchange_rates.for_currency('USD')
-    return '${:.2}'.format(satoshis / sats_per_usd)
+def format_fiat_amount(satoshis: int, currency: str) -> str:
+    sats_per_usd = exchange_rates.for_currency(currency)
+    symbol = currency_infos.symbol_for_code(currency)
+    fmt = currency_infos.format_for_code(currency)
+    amount = str(round(satoshis / sats_per_usd, fmt['decimalPlaces']))
+    return f'{symbol}{amount}'
 
 
 async def receive_tx(tx: Tx):
@@ -57,8 +63,9 @@ async def receive_tx(tx: Tx):
     print(amounts)
     async with aiohttp.ClientSession() as session:
         for bch_address, amount in amounts.items():
+            currency = addresses[bch_address]['currency']
             url = 'https://explorer.bitcoin.com/bch/tx/' + tx.tx_hash()
-            msg = f'Received {format_usd_amount(amount)} ({format_bch_amount(amount)})'
+            msg = f'Received {format_fiat_amount(amount, currency)} ({format_bch_amount(amount)})'
             async with session.post(
                     'https://onesignal.com/api/v1/notifications',
                     headers={"Authorization": f'Basic {app_auth}'},
@@ -85,32 +92,69 @@ async def listen_txs():
             print('unknown message type:', message)
 
 
+def save_addresses():
+    pickle.dump(addresses, open(addresses_path, 'wb'))
+
+
 asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(listen_txs()))
 asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(exchange_rates.listen()))
 
 
 template = Template(open('subscribe.html').read())
 scan_template = open('scan.html').read()
+currency_template = Template(open('select_currency.html').read())
 
 
 async def handle(request):
     try:
         address = request.match_info.get('address', '<no address provided>')
-        wallet.add_addresses([Address.from_string(address)])
+        if address not in addresses:
+            wallet.add_addresses([Address.from_string(address)])
+            addresses[address] = {'currency': 'USD'}
+            save_addresses()
     except:
         return web.Response(text=f'Invalid address: {address}')
-    addresses.add(address)
-    pickle.dump(addresses, open(addresses_path, 'wb'))
     return web.Response(
         text=template.substitute(address=address, appId=app_id),
         content_type='text/html',
     )
 
+
 async def handle_scan(request):
     return web.Response(text=scan_template, content_type='text/html')
 
+
+async def handle_select_currency(request):
+    try:
+        address = request.match_info.get('address', '<no address provided>')
+        address = Address.from_string(address).cash_address()
+    except:
+        return web.Response(text=f'Invalid address: {address}')
+    if 'currency' in request.match_info:
+        currency = request.match_info['currency']
+        addresses.setdefault(address, {})['currency'] = currency
+        save_addresses()
+    selected_currency = addresses.get(address, {}).get('currency', None)
+    selected_html = 'class="selected"'
+    response = currency_template.substitute(
+        currencies='\n'.join(
+            f'<a href="/subscribe/select-currency/{address}/{currency}"'
+            f'{selected_html if selected_currency == currency else ""}>'
+            f'{currency}&nbsp;({currency_infos.symbol_for_code(currency)})'
+            f'</a>'
+            for currency in currency_infos.currencies()
+        )
+    )
+    return web.Response(
+        text=response,
+        content_type='text/html',
+    )
+
+
 app = web.Application()
 app.add_routes([web.get('/', handle_scan),
+                web.get('/select-currency/{address}', handle_select_currency),
+                web.get('/select-currency/{address}/{currency}', handle_select_currency),
                 web.get('/{address}', handle)])
 
 web.run_app(app, port=7010)
