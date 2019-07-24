@@ -75,8 +75,8 @@ async def tx_speech(address: str, satoshis: int, currency: str):
     txt = f'Received {format_fiat_speech(satoshis, currency)}'
     _, handle_id = address.split(':')
     await asyncio.get_event_loop().run_in_executor(pool, lambda: speech.gen_speech(handle_id, txt))
-    await asyncio.wait(*[
-        ws.send_str(f'/static/speech/{handle_id}.mp3')
+    await asyncio.gather(*[
+        ws.send_str(f'/speech/{handle_id}.mp3')
         for ws in wss.values()
     ])
 
@@ -172,7 +172,8 @@ async def handle_select_currency(request):
             f'{currency}&nbsp;({currency_infos.symbol_for_code(currency)})'
             f'</a>'
             for currency in currency_infos.currencies()
-        )
+        ),
+        address=address,
     )
     return web.Response(
         text=response,
