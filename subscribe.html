@@ -23,6 +23,10 @@
           msg.innerText = 'already subscribed, changed to $address';
         });
       });
+      var ws = new WebSocket('ws://' + location.host + '/listen-tx/$address');
+      ws.onmessage = function (msg) {
+        new Audio(msg.data).play();
+      };
     </script>
   </head>
   <body>
