@@ -29,7 +29,7 @@ except:
 address_websockets = dict()
 wallet = wallet.WalletDefault()
 wallet.add_addresses([Address.from_string(address) for address in addresses.keys()])
-exchange_rates = exchange_rate.ExchangeRateApi()
+exchange_rates = exchange_rate.ExchangeRateBitcoinCom()
 currency_infos = exchange_rate.CurrenciesInfoFixed()
 speech = text_to_speech.TextToSpeech(speech_path)
 pool = ThreadPoolExecutor(10)

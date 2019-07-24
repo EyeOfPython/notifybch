@@ -59,6 +59,30 @@ class ExchangeRateApi(ExchangeRate):
         return iter(self._last_result.keys())
 
 
+class ExchangeRateBitcoinCom(ExchangeRate):
+    API_URL = 'https://index-api.bitcoin.com/api/v0/cash/price/'
+
+    def __init__(self) -> None:
+        self._api_url = self.API_URL
+        self._last_result = {}
+        self._currencies = list(CurrenciesInfoFixed().currencies())
+
+    def for_currency(self, currency_name: str) -> float:
+        return self._last_result[currency_name]
+
+    async def listen(self) -> None:
+        async with aiohttp.ClientSession() as session:
+            while True:
+                for currency in self._currencies:
+                    async with session.get(f'{self._api_url}{currency}') as response:
+                        d = await response.json()
+                        self._last_result[currency] = 100_000_000 / (float(d['price']) / 100)
+                await asyncio.sleep(100)
+
+    def currencies(self) -> Iterable[str]:
+        return iter(self._currencies)
+
+
 class CurrenciesInfo(metaclass=ABCMeta):
     @abstractmethod
     def currencies(self) -> Iterable[str]:
@@ -82,7 +106,7 @@ class CurrenciesInfoFixed(CurrenciesInfo):
     CURRENCIES_INFO = [
         ('United States Dollar', 'USD', '$', 2),
         ('United Kingdom Pound', 'GBP', '£', 2),
-        ('Bitcoin Cash', 'BCH', 'BCH', 8),
+        # ('Bitcoin Cash', 'BCH', 'BCH', 8),
         ('Canada Dollar', 'CAD', '$', 2),
         ('Euro Member Countries', 'EUR', '€', 2),
         ('Hong Kong Dollar', 'HKD', '$', 2),
@@ -182,14 +206,14 @@ class CurrenciesInfoFixed(CurrenciesInfo):
         ('Thailand Baht', 'THB', '฿', 2),
         ('Trinidad and Tobago Dollar', 'TTD', 'TT$', 2),
         ('Turkey Lira', 'TRY', 'TRY', 2),
-        ('Tuvalu Dollar', 'TVD', '$', 2),
+        # ('Tuvalu Dollar', 'TVD', '$', 2),
         ('Ukraine Hryvnia', 'UAH', '₴', 2),
         ('Uruguay Peso', 'UYU', '$U', 2),
         ('Uzbekistan Som', 'UZS', 'лв', 2),
         ('Venezuela Bolívar', 'VEF', 'Bs', 2),
         ('Viet Nam Dong', 'VND', '₫', 2),
         ('Yemen Rial', 'YER', '﷼', 2),
-        ('Zimbabwe Dollar', 'ZWD', 'Z$', 0),
+        # ('Zimbabwe Dollar', 'ZWD', 'Z$', 0),
     ]
 
     def __init__(self) -> None:
