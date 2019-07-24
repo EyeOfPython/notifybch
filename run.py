@@ -1,19 +1,24 @@
+import asyncio
 import os
+import secrets
 from string import Template
 
 from aiohttp import web
 import aiohttp
-import asyncio
 import pickle
+
 from cashaddress.convert import Address
+from concurrent.futures.thread import ThreadPoolExecutor
 
 import exchange_rate
+import text_to_speech
 import wallet
 from tx_event import TxBitsocket, Tx
 
 app_auth = os.environ['ONESIGNAL_APP_KEY']
 app_id = os.environ['ONESIGNAL_APP_ID']
 addresses_path = os.environ.get('ADDRESSES_PATH', 'addresses.pickle')
+speech_path = os.environ.get('SPEECH_PATH', 'speech')
 
 try:
     addresses = pickle.load(open(addresses_path, 'rb'))
@@ -21,10 +26,13 @@ try:
         addresses = {address: {'currency': 'USD'} for address in addresses}
 except:
     addresses = dict()
+address_websockets = dict()
 wallet = wallet.WalletDefault()
 wallet.add_addresses([Address.from_string(address) for address in addresses.keys()])
 exchange_rates = exchange_rate.ExchangeRateApi()
 currency_infos = exchange_rate.CurrenciesInfoFixed()
+speech = text_to_speech.TextToSpeech(speech_path)
+pool = ThreadPoolExecutor(10)
 
 
 def format_bch_amount(satoshis: int):
@@ -52,6 +60,27 @@ def format_fiat_amount(satoshis: int, currency: str) -> str:
     return '{}{:,.{n}f}'.format(symbol, satoshis / sats_per_usd, n=fmt['decimalPlaces'])
 
 
+def format_fiat_speech(satoshis: int, currency: str):
+    sats_per_usd = exchange_rates.for_currency(currency)
+    fmt = currency_infos.format_for_code(currency)
+    amount = satoshis / sats_per_usd
+    symbol = currency_infos.symbol_for_code(currency)
+    return '{:.{n}f} {}'.format(amount, symbol, n=fmt['decimalPlaces'])
+
+
+async def tx_speech(address: str, satoshis: int, currency: str):
+    wss = address_websockets.get(address, {})
+    if not wss:
+        return
+    txt = f'Received {format_fiat_speech(satoshis, currency)}'
+    _, handle_id = address.split(':')
+    await asyncio.get_event_loop().run_in_executor(pool, lambda: speech.gen_speech(handle_id, txt))
+    await asyncio.wait(*[
+        ws.send_str(f'/static/speech/{handle_id}.mp3')
+        for ws in wss.values()
+    ])
+
+
 async def receive_tx(tx: Tx):
     amounts = {}
     for output in tx.outputs():
@@ -63,6 +92,7 @@ async def receive_tx(tx: Tx):
     async with aiohttp.ClientSession() as session:
         for bch_address, amount in amounts.items():
             currency = addresses[bch_address]['currency']
+            asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(tx_speech(bch_address, amount, currency)))
             url = 'https://explorer.bitcoin.com/bch/tx/' + tx.tx_hash()
             msg = f'Received {format_fiat_amount(amount, currency)} ({format_bch_amount(amount)})'
             async with session.post(
@@ -150,11 +180,33 @@ async def handle_select_currency(request):
     )
 
 
+async def websocket_handler(request):
+    try:
+        address = request.match_info.get('address', '<no address provided>')
+        address = Address.from_string(address).cash_address()
+    except:
+        return web.Response(text=f'Invalid address: {address}', status=400)
+
+    ws_id = secrets.token_urlsafe(32)
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    address_websockets.setdefault(address, {})[ws_id] = ws
+
+    async for _ in ws:
+        pass
+
+    print('websocket connection closed', address, ws_id)
+    del address_websockets[address][ws_id]
+
+    return ws
+
+
 app = web.Application()
 app.add_routes([web.get('/', handle_scan),
                 web.get('/select-currency/{address}', handle_select_currency),
                 web.get('/select-currency/{address}/{currency}', handle_select_currency),
+                web.get('/listen-tx/{address}', websocket_handler),
                 web.get('/{address}', handle)])
 
 web.run_app(app, port=7010)
-
