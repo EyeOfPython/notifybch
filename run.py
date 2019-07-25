@@ -85,7 +85,7 @@ async def receive_tx(tx: Tx):
     amounts = {}
     for output in tx.outputs():
         address = output.address()
-        if wallet.is_listening_to_address(address):
+        if address is not None and wallet.is_listening_to_address(address):
             amounts.setdefault(address.cash_address(), 0)
             amounts[address.cash_address()] += output.amount()
     print(amounts)
